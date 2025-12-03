@@ -1,14 +1,12 @@
-import { createClient } from "@/lib/supabase/server"
+import { getImages } from "@/lib/storage"
 import { NextResponse } from "next/server"
 
 export async function GET() {
-  const supabase = await createClient()
-
-  const { data: images, error } = await supabase.from("images").select("*").order("created_at", { ascending: false })
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  try {
+    const images = await getImages()
+    return NextResponse.json({ images })
+  } catch (error) {
+    console.error("Error fetching images:", error)
+    return NextResponse.json({ error: "Failed to fetch images" }, { status: 500 })
   }
-
-  return NextResponse.json({ images })
 }
