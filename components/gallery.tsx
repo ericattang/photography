@@ -23,10 +23,30 @@ export function Gallery() {
   useEffect(() => {
     if (data?.images) {
       // Distribute images across 3 columns
+      // If images have saved column/position, use those; otherwise distribute evenly
       const cols: ImageData[][] = [[], [], []]
-      data.images.forEach((img, i) => {
-        cols[i % 3].push(img)
+      
+      data.images.forEach((img) => {
+        if (img.column !== undefined && img.column >= 0 && img.column < 3) {
+          // Use saved column
+          cols[img.column].push(img)
+        } else {
+          // Fallback to round-robin distribution
+          const index = data.images.indexOf(img)
+          cols[index % 3].push(img)
+        }
       })
+      
+      // Sort each column by position if available
+      cols.forEach((col) => {
+        col.sort((a, b) => {
+          if (a.position !== undefined && b.position !== undefined) {
+            return a.position - b.position
+          }
+          return 0
+        })
+      })
+      
       setColumns(cols)
     }
   }, [data])
@@ -67,7 +87,7 @@ export function Gallery() {
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 md:p-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
         {columns.map((column, colIndex) => (
           <div key={colIndex} className="flex flex-col gap-4">
             {column.map((image) => (

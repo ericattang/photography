@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Upload, X, LogOut, GripVertical } from "lucide-react"
+import { Upload, X, LogOut, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import useSWR, { mutate } from "swr"
 import Image from "next/image"
 import {
@@ -44,12 +44,18 @@ function SortableImageItem({
   deleting,
   columnIndex,
   indexInColumn,
+  onMove,
+  totalColumns,
+  columnLength,
 }: {
   image: ImageData
   onDelete: (image: ImageData) => void
   deleting: string | null
   columnIndex: number
   indexInColumn: number
+  onMove: (imageId: string, direction: 'up' | 'down' | 'left' | 'right') => void
+  totalColumns: number
+  columnLength: number
 }) {
   const {
     attributes,
@@ -81,6 +87,74 @@ function SortableImageItem({
         sizes="(max-width: 768px) 100vw, 33vw"
       />
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+      
+      {/* Control buttons - appear on hover, arranged like keyboard arrow pad */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <div className="grid grid-cols-3 gap-1 place-items-center" style={{ gridTemplateRows: 'auto auto' }}>
+          {/* Top row: Left, Up, Right */}
+          <div className="col-start-1 row-start-1">
+            {columnIndex > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMove(image.id, 'left')
+                }}
+                className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded transition-colors backdrop-blur-sm"
+                aria-label="Move left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
+          <div className="col-start-2 row-start-1">
+            {indexInColumn > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMove(image.id, 'up')
+                }}
+                className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded transition-colors backdrop-blur-sm"
+                aria-label="Move up"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
+          <div className="col-start-3 row-start-1">
+            {columnIndex < totalColumns - 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMove(image.id, 'right')
+                }}
+                className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded transition-colors backdrop-blur-sm"
+                aria-label="Move right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
+          {/* Bottom row: Down (centered) */}
+          <div className="col-start-2 row-start-2">
+            {indexInColumn < columnLength - 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMove(image.id, 'down')
+                }}
+                className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded transition-colors backdrop-blur-sm"
+                aria-label="Move down"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      
       <div
         {...attributes}
         {...listeners}
@@ -124,11 +198,31 @@ export function AdminPanel() {
 
   useEffect(() => {
     if (data?.images) {
-      // Distribute images across 3 columns (same as gallery)
+      // Distribute images across 3 columns
+      // If images have saved column/position, use those; otherwise distribute evenly
       const cols: ImageData[][] = [[], [], []]
-      data.images.forEach((img, i) => {
-        cols[i % 3].push(img)
+      
+      data.images.forEach((img) => {
+        if (img.column !== undefined && img.column >= 0 && img.column < 3) {
+          // Use saved column
+          cols[img.column].push(img)
+        } else {
+          // Fallback to round-robin distribution
+          const index = data.images.indexOf(img)
+          cols[index % 3].push(img)
+        }
       })
+      
+      // Sort each column by position if available
+      cols.forEach((col) => {
+        col.sort((a, b) => {
+          if (a.position !== undefined && b.position !== undefined) {
+            return a.position - b.position
+          }
+          return 0
+        })
+      })
+      
       setColumns(cols)
     }
   }, [data])
@@ -216,6 +310,81 @@ export function AdminPanel() {
       console.error("Delete failed:", error)
     } finally {
       setDeleting(null)
+    }
+  }
+
+  const handleMove = async (imageId: string, direction: 'up' | 'down' | 'left' | 'right') => {
+    if (!data?.images) return
+
+    // Find current position
+    let currentColumn = -1
+    let currentPosition = -1
+
+    columns.forEach((col, colIdx) => {
+      col.forEach((img, posIdx) => {
+        if (img.id === imageId) {
+          currentColumn = colIdx
+          currentPosition = posIdx
+        }
+      })
+    })
+
+    if (currentColumn === -1) return
+
+    const newColumns = columns.map((col) => [...col])
+    const [movedImage] = newColumns[currentColumn].splice(currentPosition, 1)
+
+    // Calculate new position based on direction
+    let newColumn = currentColumn
+    let newPosition = currentPosition
+
+    if (direction === 'up' && currentPosition > 0) {
+      // Move up in same column
+      newPosition = currentPosition - 1
+    } else if (direction === 'down' && currentPosition < newColumns[currentColumn].length) {
+      // Move down in same column
+      newPosition = currentPosition + 1
+    } else if (direction === 'left' && currentColumn > 0) {
+      // Move left to adjacent column, same row position
+      newColumn = currentColumn - 1
+      // Try to maintain same position, but don't exceed column length
+      newPosition = Math.min(currentPosition, newColumns[newColumn].length)
+    } else if (direction === 'right' && currentColumn < columns.length - 1) {
+      // Move right to adjacent column, same row position
+      newColumn = currentColumn + 1
+      // Try to maintain same position, but don't exceed column length
+      newPosition = Math.min(currentPosition, newColumns[newColumn].length)
+    } else {
+      return // Can't move in that direction
+    }
+
+    newColumns[newColumn].splice(newPosition, 0, movedImage)
+
+    // Flatten and create new order
+    const flattened: { id: string; order: number; column: number; position: number }[] = []
+    newColumns.forEach((col, colIdx) => {
+      col.forEach((img, posIdx) => {
+        flattened.push({
+          id: img.id,
+          order: colIdx * 1000 + posIdx,
+          column: colIdx,
+          position: posIdx,
+        })
+      })
+    })
+
+    try {
+      const response = await fetch("/api/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newOrder: flattened }),
+      })
+
+      if (response.ok) {
+        mutate("/api/images")
+      }
+    } catch (error) {
+      console.error("Move error:", error)
     }
   }
 
@@ -330,7 +499,7 @@ export function AdminPanel() {
         )}
       </header>
 
-      <main className="p-4 md:p-8">
+      <main className="p-4">
         {isLoading ? (
           <div className="flex items-center justify-center min-h-[50vh]">
             <div className="w-6 h-6 border-2 border-foreground/20 border-t-foreground rounded-full animate-spin" />
@@ -366,12 +535,15 @@ export function AdminPanel() {
                         deleting={deleting}
                         columnIndex={colIndex}
                         indexInColumn={indexInColumn}
+                        onMove={handleMove}
+                        totalColumns={columns.length}
+                        columnLength={column.length}
                       />
                     ))}
-                  </div>
+              </div>
                 </SortableContext>
-              ))}
-            </div>
+            ))}
+          </div>
           </DndContext>
         )}
       </main>
