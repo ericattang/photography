@@ -97,16 +97,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File too large. Maximum size is 15MB." }, { status: 400 })
     }
 
-    // Upload to Cloudinary
-    console.log(`Uploading to Cloudinary: ${fileName}, ${buffer.length} bytes`)
-    
-    // For smaller files, use base64. For larger files, we could use upload_stream
-    // but base64 should work fine for files under 15MB
-    const base64Data = buffer.toString("base64")
-    const base64String = `data:${fileType};base64,${base64Data}`
+    // Convert buffer to base64 for Cloudinary
+    let base64String: string
+    try {
+      const base64Data = buffer.toString("base64")
+      base64String = `data:${fileType};base64,${base64Data}`
+      console.log(`Base64 conversion complete, length: ${base64String.length}`)
+    } catch (base64Error) {
+      console.error("Base64 conversion error:", base64Error)
+      return NextResponse.json({ error: "Failed to convert image to base64" }, { status: 500 })
+    }
     
     let result
     try {
+      console.log("Starting Cloudinary upload...")
       result = await new Promise<any>((resolve, reject) => {
         cloudinary.uploader.upload(
           base64String,
@@ -117,8 +121,11 @@ export async function POST(request: NextRequest) {
           (error, result) => {
             if (error) {
               console.error("Cloudinary upload error:", error)
-              console.error("Error message:", error.message)
-              console.error("Error http_code:", error.http_code)
+              console.error("Cloudinary error details:", {
+                message: error.message,
+                http_code: error.http_code,
+                name: error.name,
+              })
               reject(error)
             } else if (!result) {
               reject(new Error("Cloudinary returned no result"))
@@ -130,33 +137,12 @@ export async function POST(request: NextRequest) {
         )
       })
     } catch (cloudinaryError) {
-      console.error("Cloudinary error caught:", cloudinaryError)
-      console.error("Error type:", typeof cloudinaryError)
-      console.error("Error stack:", cloudinaryError instanceof Error ? cloudinaryError.stack : "No stack trace")
-      
-      // Extract more detailed error information
-      let errorMessage = "Cloudinary upload failed"
-      let errorCode = undefined
-      
-      if (cloudinaryError instanceof Error) {
-        errorMessage = cloudinaryError.message
-        // Check if it's a Cloudinary error object
-        if ('http_code' in cloudinaryError) {
-          errorCode = (cloudinaryError as any).http_code
-          errorMessage = `Cloudinary error (${errorCode}): ${errorMessage}`
-        }
-      } else if (typeof cloudinaryError === 'object' && cloudinaryError !== null) {
-        errorMessage = JSON.stringify(cloudinaryError)
-      } else {
-        errorMessage = String(cloudinaryError)
-      }
-      
-      const errorDetails = cloudinaryError instanceof Error ? cloudinaryError.stack : String(cloudinaryError)
-      
+      console.error("Cloudinary error (catch):", cloudinaryError)
+      console.error("Cloudinary error stack:", cloudinaryError instanceof Error ? cloudinaryError.stack : "No stack trace")
+      const errorMessage = cloudinaryError instanceof Error ? cloudinaryError.message : "Cloudinary upload failed"
       return NextResponse.json({ 
-        error: errorMessage,
-        code: errorCode,
-        details: process.env.NODE_ENV === "development" ? errorDetails : undefined
+        error: `Upload failed: ${errorMessage}`,
+        details: process.env.NODE_ENV === "development" ? (cloudinaryError instanceof Error ? cloudinaryError.stack : String(cloudinaryError)) : undefined
       }, { status: 500 })
     }
 
@@ -167,30 +153,36 @@ export async function POST(request: NextRequest) {
 
     // Save to database
     try {
-      console.log("Saving image to database...")
+      console.log("Saving image to database:", { fileName, url: result.secure_url })
       const image = await addImage(fileName, result.secure_url)
-      console.log("Image saved successfully with ID:", image.id)
+      console.log("Image saved successfully:", image.id)
       return NextResponse.json({ success: true, url: result.secure_url, id: image.id })
     } catch (dbError) {
       console.error("Database save error:", dbError)
-      console.error("Error stack:", dbError instanceof Error ? dbError.stack : "No stack trace")
-      const errorDetails = dbError instanceof Error ? dbError.stack : String(dbError)
+      console.error("Database error stack:", dbError instanceof Error ? dbError.stack : "No stack trace")
+      console.error("Database error details:", {
+        name: dbError instanceof Error ? dbError.name : typeof dbError,
+        message: dbError instanceof Error ? dbError.message : String(dbError),
+      })
       // Image uploaded but failed to save metadata - still return success but log error
       return NextResponse.json({ 
         success: true, 
         url: result.secure_url, 
         warning: "Image uploaded but metadata save failed",
-        error: process.env.NODE_ENV === "development" ? errorDetails : undefined
+        error: process.env.NODE_ENV === "development" ? (dbError instanceof Error ? dbError.message : String(dbError)) : undefined
       })
     }
   } catch (error) {
     console.error("Upload error (unexpected):", error)
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace")
+    console.error("Error details:", {
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message : String(error),
+    })
     const message = error instanceof Error ? error.message : "Upload failed"
-    const errorDetails = error instanceof Error ? error.stack : String(error)
     return NextResponse.json({ 
       error: message,
-      details: process.env.NODE_ENV === "development" ? errorDetails : undefined
+      details: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : String(error)) : undefined
     }, { status: 500 })
   }
 }

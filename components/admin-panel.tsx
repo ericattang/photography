@@ -313,13 +313,14 @@ export function AdminPanel() {
           // Try to parse error message, but handle HTML error pages
           const contentType = response.headers.get("content-type")
           let errorMessage = "Upload failed"
-          let errorDetails = ""
+          let errorDetails: string | undefined
           
           if (contentType?.includes("application/json")) {
             try {
               const errorData = await response.json()
-              errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`
-              errorDetails = errorData.details || errorData.code || ""
+              errorMessage = errorData.error || `Server error: ${response.status}`
+              errorDetails = errorData.details || errorData.message
+              console.error("Server error response:", errorData)
             } catch {
               errorMessage = `Server error: ${response.status} ${response.statusText}`
             }
@@ -328,7 +329,7 @@ export function AdminPanel() {
             errorMessage = `Server error: ${response.status} ${response.statusText}`
           }
           
-          const fullErrorMessage = errorDetails ? `${errorMessage}${errorDetails ? ` (${errorDetails})` : ""}` : errorMessage
+          const fullErrorMessage = errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage
           throw new Error(fullErrorMessage)
         }
 
