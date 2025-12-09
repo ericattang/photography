@@ -5,7 +5,8 @@ import type React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Upload, X, LogOut, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Upload, X, LogOut, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import useSWR, { mutate } from "swr"
 import Image from "next/image"
 import {
@@ -185,6 +186,9 @@ export function AdminPanel() {
   const { data, isLoading } = useSWR<{ images: ImageData[] }>("/api/images", fetcher)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [currentFile, setCurrentFile] = useState<string | null>(null)
+  const [totalFiles, setTotalFiles] = useState(0)
+  const [completedFiles, setCompletedFiles] = useState(0)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [columns, setColumns] = useState<ImageData[][]>([[], [], []])
@@ -240,12 +244,16 @@ export function AdminPanel() {
     setUploading(true)
     setError(null)
     setUploadProgress(0)
+    setTotalFiles(files.length)
+    setCompletedFiles(0)
+    setCurrentFile(null)
 
     try {
-      const totalFiles = files.length
-      let completedFiles = 0
+      const totalFilesCount = files.length
+      let completedFilesCount = 0
 
       for (const file of Array.from(files)) {
+        setCurrentFile(file.name)
         // Check file size client-side
         if (file.size > 15 * 1024 * 1024) {
           setError(`${file.name} is too large. Maximum size is 15MB.`)
@@ -340,8 +348,9 @@ export function AdminPanel() {
           throw new Error(result.error)
         }
 
-        completedFiles++
-        setUploadProgress(Math.round((completedFiles / totalFiles) * 100))
+        completedFilesCount++
+        setCompletedFiles(completedFilesCount)
+        setUploadProgress(Math.round((completedFilesCount / totalFilesCount) * 100))
       }
 
       mutate("/api/images")
@@ -351,6 +360,9 @@ export function AdminPanel() {
     } finally {
       setUploading(false)
       setUploadProgress(0)
+      setCurrentFile(null)
+      setTotalFiles(0)
+      setCompletedFiles(0)
       e.target.value = ""
     }
   }, [])
@@ -539,9 +551,13 @@ export function AdminPanel() {
                 disabled={uploading}
               />
               <Button variant="outline" size="sm" asChild disabled={uploading}>
-                <span className="cursor-pointer">
-                  <Upload className="w-4 h-4 mr-2" />
-                  {uploading ? `${uploadProgress}% Uploading...` : "Upload"}
+                <span className="cursor-pointer flex items-center">
+                  {uploading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  {uploading ? "Uploading..." : "Upload"}
                 </span>
               </Button>
             </label>
@@ -550,6 +566,36 @@ export function AdminPanel() {
             </Button>
           </div>
         </div>
+        
+        {/* Upload Progress Bar */}
+        {uploading && (
+          <div className="px-4 pb-3 space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {currentFile ? (
+                  <>
+                    Uploading: <span className="font-medium text-foreground">{currentFile}</span>
+                  </>
+                ) : (
+                  "Preparing upload..."
+                )}
+              </span>
+              <span className="font-medium text-foreground">
+                {completedFiles} / {totalFiles} files
+              </span>
+            </div>
+            <Progress value={uploadProgress} className="h-2" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{uploadProgress}% complete</span>
+              {totalFiles > 1 && (
+                <span>
+                  {Math.round((completedFiles / totalFiles) * 100)}% of files uploaded
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        
         {error && (
           <div className="px-4 pb-3">
             <p className="text-sm text-red-500">{error}</p>
