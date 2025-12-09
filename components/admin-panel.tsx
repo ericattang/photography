@@ -247,39 +247,96 @@ export function AdminPanel() {
 
       for (const file of Array.from(files)) {
         // Check file size client-side
-        if (file.size > 10 * 1024 * 1024) {
-          setError(`${file.name} is too large. Maximum size is 10MB.`)
+        if (file.size > 15 * 1024 * 1024) {
+          setError(`${file.name} is too large. Maximum size is 15MB.`)
           continue
         }
 
-        // Convert file to base64
-        const reader = new FileReader()
-        const base64Data = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            const result = reader.result as string
-            // Remove data:image/...;base64, prefix
-            const base64 = result.split(",")[1]
-            resolve(base64)
+        // Try FormData first, fallback to JSON with base64 if FormData parsing fails
+        let response: Response
+        let shouldUseJsonFallback = false
+
+        try {
+          const formData = new FormData()
+          formData.append("file", file)
+
+          response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          })
+
+          // If FormData fails with 400 and error mentions FormData parsing, try JSON fallback
+          if (!response.ok && response.status === 400) {
+            try {
+              const errorData = await response.json()
+              if (errorData?.error?.includes("FormData") || errorData?.error?.includes("parse")) {
+                console.log("FormData parsing failed, falling back to JSON")
+                shouldUseJsonFallback = true
+              }
+            } catch {
+              // Couldn't parse error, assume it's not a FormData issue
+            }
           }
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        })
+        } catch (formDataError) {
+          console.log("FormData request failed, falling back to JSON:", formDataError)
+          shouldUseJsonFallback = true
+        }
 
-        // Upload to API
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type,
-            data: base64Data,
-          }),
-        })
+        // Fallback to JSON with base64 if FormData parsing specifically failed
+        if (shouldUseJsonFallback) {
+          // Convert file to base64
+          const reader = new FileReader()
+          const base64Data = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => {
+              const result = reader.result as string
+              // Remove data:image/...;base64, prefix
+              const base64 = result.split(",")[1]
+              resolve(base64)
+            }
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+          })
 
+          response = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename: file.name,
+              contentType: file.type,
+              data: base64Data,
+            }),
+          })
+        }
+
+        // Check if response is ok before parsing
+        if (!response.ok) {
+          // Try to parse error message, but handle HTML error pages
+          const contentType = response.headers.get("content-type")
+          let errorMessage = "Upload failed"
+          let errorDetails = ""
+          
+          if (contentType?.includes("application/json")) {
+            try {
+              const errorData = await response.json()
+              errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`
+              errorDetails = errorData.details || errorData.code || ""
+            } catch {
+              errorMessage = `Server error: ${response.status} ${response.statusText}`
+            }
+          } else {
+            // Response is HTML (error page), get status text
+            errorMessage = `Server error: ${response.status} ${response.statusText}`
+          }
+          
+          const fullErrorMessage = errorDetails ? `${errorMessage}${errorDetails ? ` (${errorDetails})` : ""}` : errorMessage
+          throw new Error(fullErrorMessage)
+        }
+
+        // Parse JSON response
         const result = await response.json()
 
-        if (!response.ok || result.error) {
-          throw new Error(result.error || "Upload failed")
+        if (result.error) {
+          throw new Error(result.error)
         }
 
         completedFiles++

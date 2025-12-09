@@ -88,28 +88,28 @@ export function Gallery() {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-        {columns.map((column, colIndex) => (
-          <div key={colIndex} className="flex flex-col gap-4">
-            {column.map((image) => (
+      {columns.map((column, colIndex) => (
+        <div key={colIndex} className="flex flex-col gap-4">
+          {column.map((image) => (
               <div
                 key={image.id}
                 className="relative group cursor-pointer"
                 onClick={() => setSelectedImage(image)}
               >
-                <Image
-                  src={image.url || "/placeholder.svg"}
-                  alt={image.filename}
-                  width={600}
-                  height={800}
+              <Image
+                src={image.url || "/placeholder.svg"}
+                alt={image.filename}
+                width={600}
+                height={800}
                   className="w-full h-auto object-cover transition-opacity group-hover:opacity-90"
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                />
+                sizes="(max-width: 768px) 100vw, 33vw"
+              />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
 
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
         <DialogContent 

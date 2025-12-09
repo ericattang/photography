@@ -99,13 +99,6 @@ export async function getImages(): Promise<ImageData[]> {
 export async function addImage(filename: string, url: string): Promise<ImageData> {
   const images = await getImages()
   
-  // New images should appear first, so we'll insert at the beginning
-  // Shift all existing orders by 1 and set new image to order 0
-  const updatedImages = images.map((img, index) => ({
-    ...img,
-    order: (img.order ?? index) + 1
-  }))
-  
   // Generate UUID - use crypto.randomUUID() if available, otherwise fallback
   let imageId: string
   try {
@@ -120,16 +113,22 @@ export async function addImage(filename: string, url: string): Promise<ImageData
     imageId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
   }
   
+  // New images should appear first
+  // Find the minimum order value and subtract 1, or use -1 if no images exist
+  const minOrder = images.length > 0 
+    ? Math.min(...images.map(img => img.order ?? 0))
+    : 0
+  
   const newImage: ImageData = {
     id: imageId,
     url,
     filename,
     created_at: new Date().toISOString(),
-    order: 0, // New images get order 0 (appear first)
+    order: minOrder - 1, // New images get order less than minimum (appear first)
   }
   
-  updatedImages.unshift(newImage) // Add to beginning
-  const imagesToSave = updatedImages
+  // Add new image to beginning of array
+  const imagesToSave = [newImage, ...images]
   
   try {
     if (isKVConfigured()) {

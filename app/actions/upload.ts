@@ -20,9 +20,9 @@ export async function uploadImage(formData: FormData) {
     return { error: "No file provided" }
   }
 
-  // Check file size (10MB limit)
-  if (file.size > 10 * 1024 * 1024) {
-    return { error: "File too large. Maximum size is 10MB." }
+  // Check file size (15MB limit)
+  if (file.size > 15 * 1024 * 1024) {
+    return { error: "File too large. Maximum size is 15MB." }
   }
 
   try {
