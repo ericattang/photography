@@ -8,9 +8,32 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Photography",
-  description: "A minimalist photography portfolio",
+  title: "photos by erica hu",
+  description: "the lightness of noticing",
   generator: "v0.app",
+  metadataBase: new URL("https://photo.erica-hu.com"),
+  openGraph: {
+    title: "photos by erica hu",
+    description: "the lightness of noticing",
+    url: "https://photo.erica-hu.com",
+    siteName: "photos by erica hu",
+    images: [
+      {
+        url: "/preview-image.png",
+        width: 1200,
+        height: 630,
+        alt: "photos by erica hu",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "photos by erica hu",
+    description: "the lightness of noticing",
+    images: ["/preview-image.png"],
+  },
   icons: {
     icon: [
       {
