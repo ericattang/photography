@@ -254,9 +254,9 @@ export function AdminPanel() {
 
       for (const file of Array.from(files)) {
         setCurrentFile(file.name)
-        // Check file size client-side
-        if (file.size > 15 * 1024 * 1024) {
-          setError(`${file.name} is too large. Maximum size is 15MB.`)
+        // Check file size client-side (10MB limit - Next.js default)
+        if (file.size > 10 * 1024 * 1024) {
+          setError(`${file.name} is too large. Maximum size is 10MB.`)
           continue
         }
 

@@ -1,7 +1,6 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 
 export function SecretButton() {
@@ -10,11 +9,17 @@ export function SecretButton() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setIsLoggedIn(!!user)
+      try {
+        // Check if user is authenticated via cookie-based auth
+        const response = await fetch("/api/auth/check", { method: "GET" })
+        if (response.ok) {
+          const data = await response.json()
+          setIsLoggedIn(data.authenticated || false)
+        }
+      } catch (error) {
+        // If auth check fails, assume not logged in
+        setIsLoggedIn(false)
+      }
     }
     checkAuth()
   }, [])

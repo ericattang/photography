@@ -6,6 +6,7 @@ import { v2 as cloudinary } from "cloudinary"
 // Configure route to handle larger file uploads
 export const runtime = "nodejs"
 export const maxDuration = 60
+export const dynamic = "force-dynamic"
 
 // Configure Cloudinary
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
@@ -92,9 +93,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`Uploading file: ${fileName}, size: ${buffer.length} bytes, type: ${fileType}`)
 
-    // Check file size (15MB limit)
-    if (buffer.length > 15 * 1024 * 1024) {
-      return NextResponse.json({ error: "File too large. Maximum size is 15MB." }, { status: 400 })
+    // Check file size (10MB limit - Next.js default body size limit)
+    if (buffer.length > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "File too large. Maximum size is 10MB." }, { status: 400 })
     }
 
     // Convert buffer to base64 for Cloudinary
