@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     siteName: "photos by erica hu",
     images: [
       {
-        url: "/preview-image.png",
+        url: "https://photo.erica-hu.com/preview-image.png",
         width: 1200,
         height: 630,
         alt: "photos by erica hu",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "photos by erica hu",
     description: "the lightness of noticing",
-    images: ["/preview-image.png"],
+    images: ["https://photo.erica-hu.com/preview-image.png"],
   },
   icons: {
     icon: [
